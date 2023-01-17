@@ -15,6 +15,18 @@ from utils.general import check_img_size, check_requirements, check_imshow, non_
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
 
+class BoundingBox:
+    (x0, x1, y0, y1) = (0, 0, 0, 0)
+    confidence: float
+    cls: int
+    def __init__(self, x0, x1, y0, y1, confidence, cls):
+        self.x0 = x0
+        self.x1 = x1
+        self.y0 = y0
+        self.y1 = y1
+        self.confidence = confidence
+        self.cls = cls
+
 weights_file = "yolov7.pt"
 #image= "inference/images/image1.jpg"
 source = "0"
@@ -60,9 +72,13 @@ if device.type != 'cpu':
 old_img_w = old_img_h = source_size
 old_img_b = 1
 
-def getBoxesFromImg(dataset):
+def getBoxesFromImg(image):
     print("getBoxesFromImg")
 
+    #dataset = LoadImages(image, img_size=source_size, stride=stride)
+    dataset = image
+    old_img_w = old_img_h = source_size
+    old_img_b = 1
     # Main thing ig
     for path, img, im0s, vid_cap in dataset:
         img = torch.from_numpy(img).to(device)
@@ -92,17 +108,15 @@ def getBoxesFromImg(dataset):
         # Apply NMS
         pred = non_max_suppression(pred, 0.25, 0.45, classes=None, agnostic=None)
 
-        
         # Apply Classifier
         if classify:
             pred = apply_classifier(pred, modelc, img, im0s)
         
+
+        boxes = []
         # Process detections
         for i,det in enumerate(pred):
-            if camera:
-                p, s, im0, frame = path[i], '%g: ' % i, im0s[i].copy(), dataset.count
-            else:
-                p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
+            p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
 
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             if len(det):
@@ -132,6 +146,9 @@ def getBoxesFromImg(dataset):
                     x1 = xyxy[2]
                     y1 = xyxy[3]
                     print(f'Class {cls} Conf {conf:.2f} x0 {x0} y0 {y0} x1 {x1} y1 {y1}')
+                    b = BoundingBox(x0, x1, y0, y1, conf, cls)
+                    boxes.append(b)
+        return boxes
 
 if __name__ == "__main__":
     dataset = 0
@@ -156,12 +173,12 @@ if __name__ == "__main__":
             img = img.unsqueeze(0)
 
         # Warmup
-        if device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
-            old_img_b = img.shape[0]
-            old_img_h = img.shape[2]
-            old_img_w = img.shape[3]
-            for i in range(3):
-                model(img, augment=0)[0]
+        #if device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
+        #    old_img_b = img.shape[0]
+        #    old_img_h = img.shape[2]
+        #    old_img_w = img.shape[3]
+        #    for i in range(3):
+        #        model(img, augment=0)[0]
         
         # Inference
         with torch.no_grad():
@@ -170,7 +187,6 @@ if __name__ == "__main__":
         # Apply NMS
         pred = non_max_suppression(pred, 0.25, 0.45, classes=None, agnostic=None)
 
-        
         # Apply Classifier
         if classify:
             pred = apply_classifier(pred, modelc, img, im0s)
@@ -186,8 +202,8 @@ if __name__ == "__main__":
             print('p', p)
             save_path = str(p.name)
 
-            gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-            print(gn)
+            #gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+            #print(gn)
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
@@ -200,11 +216,9 @@ if __name__ == "__main__":
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
                     #if save_txt:  # Write to file
-                    xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                    #xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                     #line = (cls, *xywh, conf) if opt.save_conf else (cls, *xywh)  # label format
-                    line = (cls, *xywh)  # label format
-                    with open(save_path + '.txt', 'a') as f:
-                        f.write(('%g ' * len(line)).rstrip() % line + '\n')
+                    #line = (cls, *xywh)  # label format
 
                     #if save_img or view_img:  # Add bbox to image
                     label = f'{names[int(cls)]} {conf:.2f}'
@@ -214,9 +228,13 @@ if __name__ == "__main__":
                     y0 = xyxy[1]
                     x1 = xyxy[2]
                     y1 = xyxy[3]
+
+                    with open(save_path + '.txt', 'a') as f:
+                        f.write(f'Class {cls} Conf {conf:.2f} x0 {x0} y0 {y0} x1 {x1} y1 {y1}\n')
+
                     print(f'Class {cls} Conf {conf:.2f} x0 {x0} y0 {y0} x1 {x1} y1 {y1}')
 
             if camera:
-                cv2.imshow("asd", im0)
+                cv2.imshow("Webcam", im0)
             else:
                 cv2.imwrite(save_path, im0)
