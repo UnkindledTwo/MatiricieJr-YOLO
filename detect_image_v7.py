@@ -2,6 +2,7 @@ import argparse
 import time
 from pathlib import Path
 
+import numpy as np
 import cv2
 import torch
 import torch.backends.cudnn as cudnn
@@ -9,7 +10,7 @@ from torchvision import transforms
 from numpy import random
 
 from models.experimental import attempt_load
-from utils.datasets import LoadStreams, LoadImages
+from utils.datasets import LoadStreams, LoadImages, letterbox
 from utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier, \
     scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 from utils.plots import plot_one_box
@@ -30,7 +31,7 @@ class BoundingBox:
 weights_file = "../yolov7.pt"
 #image= "inference/images/image1.jpg"
 source = "0"
-source_size = 640
+source_size = 160
 
 camera = False
 if source == '0':
@@ -71,6 +72,88 @@ if device.type != 'cpu':
     model(torch.zeros(1, 3, source_size, source_size).to(device).type_as(next(model.parameters())))  # run once
 old_img_w = old_img_h = source_size
 old_img_b = 1
+
+def getBoxesFromCvImage(img0: np.ndarray):
+    img = letterbox(img0, source_size, stride=stride)[0]
+    img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
+    img = np.ascontiguousarray(img)
+
+    old_img_w = old_img_h = source_size
+    old_img_b = 1
+
+    img = torch.from_numpy(img).to(device)
+
+    if half:
+        img = img.half()
+    else:
+        img = img.float()
+    
+    img /= 255.0
+
+    if img.ndimension() == 3:
+        img = img.unsqueeze(0)
+
+    # Warmup
+    if device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
+        old_img_b = img.shape[0]
+        old_img_h = img.shape[2]
+        old_img_w = img.shape[3]
+        for i in range(3):
+            model(img, augment=0)[0]
+    
+    # Inference
+    with torch.no_grad():
+        pred = model(img, augment=0)[0]
+    
+    # Apply NMS
+    pred = non_max_suppression(pred, 0.25, 0.45, classes=None, agnostic=None)
+
+    # Apply Classifier
+    if classify:
+        pred = apply_classifier(pred, modelc, img, im0s)
+    
+
+    boxes = []
+    # Process detections
+    for i,det in enumerate(pred):
+        #p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
+        im0 = img0
+
+        gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+        if len(det):
+            # Rescale boxes from img_size to im0 size
+            det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+
+            # Print results
+            for c in det[:, -1].unique():
+                n = (det[:, -1] == c).sum()  # detections per class
+            #    s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
+
+            # Write results
+            for *xyxy, conf, cls in reversed(det):
+                #if save_txt:  # Write to file
+                xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                #line = (cls, *xywh, conf) if opt.save_conf else (cls, *xywh)  # label format
+                #line = (cls, *xywh)  # label format
+                #with open(save_path + '.txt', 'a') as f:
+                #    f.write(('%g ' * len(line)).rstrip() % line + '\n')
+
+                #if save_img or view_img:  # Add bbox to image
+                #label = f'{names[int(cls)]} {conf:.2f}'
+                #plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
+
+                x0 = xyxy[0]
+                y0 = xyxy[1]
+                x1 = xyxy[2]
+                y1 = xyxy[3]
+                print(f'Class {cls} Conf {conf:.2f} x0 {x0} y0 {y0} x1 {x1} y1 {y1}')
+                b = BoundingBox(x0, x1, y0, y1, conf, cls)
+                boxes.append(b)
+
+                label = f'{names[int(cls)]} {conf:.2f}'
+                plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
+
+    return im0, boxes
 
 def getBoxesFromImg(image):
     print("getBoxesFromImg")
@@ -146,6 +229,7 @@ def getBoxesFromImg(image):
                     x1 = xyxy[2]
                     y1 = xyxy[3]
                     print(f'Class {cls} Conf {conf:.2f} x0 {x0} y0 {y0} x1 {x1} y1 {y1}')
+
                     b = BoundingBox(x0, x1, y0, y1, conf, cls)
                     boxes.append(b)
         return boxes
