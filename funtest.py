@@ -20,10 +20,12 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized,
 
 import detect_image_v7
 
-tilki = cv2.imread("../tilki.png")
+# w, h
+cam_size = (1280, 720)
 
+tilki = cv2.imread("../tilki.png")
 image = cv2.imread("../Examples/asd.jpeg")
-detectedImage = cv2.imread("../Examples/horses.png")
+detectedImage = cv2.imread("../Examples/asd.jpeg")
 boxes = 0
 switch = False
 
@@ -38,8 +40,8 @@ def detectThread():
         switch = not switch
 
 cam = cv2.VideoCapture(0)
-cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+cam.set(cv2.CAP_PROP_FRAME_WIDTH, cam_size[0])
+cam.set(cv2.CAP_PROP_FRAME_HEIGHT, cam_size[1])
 ret, frame = cam.read(-1)
 image = frame
 
@@ -47,23 +49,18 @@ thr = threading.Thread(target=detectThread)
 thr.start()
 
 def drawGUI(image):
-    width = 120
-    height = 160
-    img_slice = image[0:0 + height, 0:0 + width]
-    logo_slice = cv2.resize(tilki, (width, height), interpolation=cv2.INTER_NEAREST)
-    added_image = cv2.addWeighted(img_slice, 0.4, logo_slice, 0.6, 0)
-    image[0:0 + height, 0:0 + width] = added_image
-
-    posX = 5
-    X1 = 100
-    X2 = 540
+    posX = int(cam_size[1]* 1/7)
+    X1 = int(cam_size[0] * 1/7)
+    X2 = int(cam_size[0] * 6/7)
+    Y1 = int(cam_size[1] * 1/7)
+    Y2 = int(cam_size[1] * 6/7)
     color = (39,237,250)
 
-    cv2.line(image, (X1,30),(X1,450),color,2)
-    cv2.line(image, (X2,30),(X2,450),color,2)
-    cv2.line(image, (540,posX+240), (640,posX+240),color,1)
-    cv2.line(image, (0,posX+240), (100,posX+240),color,1)
-    times = 25
+    cv2.line(image, (X1,Y1),(X1,Y2),color,2)
+    cv2.line(image, (X2,Y1),(X2,Y2),color,2)
+    #cv2.line(image, (540,posX+240), (640,posX+240),color,1)
+    #cv2.line(image, (0,posX+240), (100,posX+240),color,1)
+    times = int((Y2 - Y1) / 17)
     for i in range(17):
         if i%3 == 1:
             cv2.line(image, (X1,posX+i*times), (X1+30,posX+i*times),color,3)
@@ -72,6 +69,17 @@ def drawGUI(image):
             cv2.line(image, (X1,posX+i*times), (X1+20,posX+i*times),color,2)
             cv2.line(image, (X2,posX+i*times), (X2-20,posX+i*times),color,2) 
 
+    width = 120
+    height = 160
+    ratio = 120/160
+    height = cam_size[1] / 5
+    width = int(ratio * height)
+    height = int(height)
+
+    img_slice = image[0:0 + height, 0:0 + width]
+    logo_slice = cv2.resize(tilki, (width, height), interpolation=cv2.INTER_NEAREST)
+    added_image = cv2.addWeighted(img_slice, 0.4, logo_slice, 0.6, 0)
+    image[0:0 + height, 0:0 + width] = added_image
 
     return image
 
@@ -83,12 +91,11 @@ while True:
 
     #image, boxes = detect_image_v7.getBoxesFromCvImage(frame)
     if(last != switch):
-        cv2.imshow("asd", drawGUI(detectedImage))
+        cv2.imshow("MTRC Ground Control", drawGUI(detectedImage))
     last = switch
-    for i in detectedImage.shape:
-        print (i)
+    #for i in detectedImage.shape:
+    #    print (i)
     print("--")
     #print(boxes)
 
     cv2.waitKey(30)
-
