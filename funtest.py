@@ -21,9 +21,10 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized,
 import detect_image_v7
 
 # w, h
-cam_size = (1280, 720)
+cam_size = (1000, 600)
 
 tilki = cv2.imread("../tilki.png")
+
 image = cv2.imread("../Examples/asd.jpeg")
 detectedImage = cv2.imread("../Examples/asd.jpeg")
 boxes = 0
@@ -44,6 +45,7 @@ cam.set(cv2.CAP_PROP_FRAME_WIDTH, cam_size[0])
 cam.set(cv2.CAP_PROP_FRAME_HEIGHT, cam_size[1])
 ret, frame = cam.read(-1)
 image = frame
+cam_size = (image.shape[1], image.shape[0])
 
 thr = threading.Thread(target=detectThread)
 thr.start()
@@ -78,7 +80,7 @@ def drawGUI(image):
 
     img_slice = image[0:0 + height, 0:0 + width]
     logo_slice = cv2.resize(tilki, (width, height), interpolation=cv2.INTER_NEAREST)
-    added_image = cv2.addWeighted(img_slice, 0.4, logo_slice, 0.6, 0)
+    added_image = cv2.addWeighted(img_slice, 0.5, logo_slice, 1-0.5, 0)
     image[0:0 + height, 0:0 + width] = added_image
 
     return image

@@ -28,10 +28,10 @@ class BoundingBox:
         self.confidence = confidence
         self.cls = cls
 
-weights_file = "../yolov7.pt"
+weights_file = "../yolov7-tiny.pt"
 #image= "inference/images/image1.jpg"
 source = "0"
-source_size = 160
+source_size = 640
 
 camera = False
 if source == '0':
