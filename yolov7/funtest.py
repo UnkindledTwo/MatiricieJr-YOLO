@@ -94,10 +94,9 @@ while True:
     #image, boxes = detect_image_v7.getBoxesFromCvImage(frame)
     if(last != switch):
         cv2.imshow("MTRC Ground Control", drawGUI(detectedImage))
+        print("--")
+        cv2.waitKey(10)
     last = switch
     #for i in detectedImage.shape:
     #    print (i)
-    print("--")
     #print(boxes)
-
-    cv2.waitKey(30)
